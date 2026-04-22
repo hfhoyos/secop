@@ -11,7 +11,7 @@
         .config { background: #111; padding: 15px; border-radius: 12px; margin-bottom: 15px; border: 1px solid #222; }
         input.key { width: 100%; background: #000; border: 1px solid #333; color: var(--gold); padding: 10px; border-radius: 8px; font-family: monospace; outline: none; }
         .rag-grid { display: grid; grid-template-columns: 1fr 380px; gap: 20px; }
-        .bot { background: #111; border-radius: 20px; padding: 25px; border: 1px solid #222; min-height: 450px; display: flex; flex-direction: column; }
+        .bot { background: #111; border-radius: 20px; padding: 25px; border: 1px solid #232938; min-height: 450px; display: flex; flex-direction: column; }
         #ai-text { flex-grow: 1; font-size: 14px; line-height: 1.6; white-space: pre-wrap; }
         .evidence { background: #080808; border-radius: 20px; padding: 20px; border: 1px solid var(--gold); min-height: 400px; }
         .ev-card { background: #1a1a1a; padding: 10px; border-radius: 8px; margin-bottom: 8px; border-left: 3px solid var(--gold); font-size: 11px; color: #888; }
@@ -25,7 +25,7 @@
 <div class="container">
     <header>
         <h1>Motor RAG SECOP II - hfhoyos</h1>
-        <div style="font-size: 10px; color: var(--accent);">ARQUITECTURA RAG BLINDADA</div>
+        <div style="font-size: 10px; color: var(--accent);">ARQUITECTURA RAG - MODO GITHUB PAGES</div>
     </header>
 
     <div class="config">
@@ -34,15 +34,15 @@
 
     <div class="rag-grid">
         <div class="bot">
-            <div id="ai-text">Inicie una consulta. El sistema recuperará datos reales de SECOP II.</div>
+            <div id="ai-text">Sistema listo. El motor usará un túnel seguro para extraer la evidencia.</div>
             <div class="input-bar">
-                <input type="text" id="query" placeholder="Ej: Tuluá, Alimentos, Salud...">
+                <input type="text" id="query" placeholder="Ej: SENA, Tuluá, Alimentos...">
                 <button onclick="engine.run()">ANALIZAR</button>
             </div>
         </div>
         <div class="evidence">
-            <h3 style="margin:0; font-size:12px; color:var(--gold);">EVIDENCIA (FAISS)</h3>
-            <div id="ev-view" style="margin-top:15px;">Sin datos.</div>
+            <h3 style="margin:0; font-size:12px; color:var(--gold);">EVIDENCIA (FAISS SIM)</h3>
+            <div id="ev-view" style="margin-top:15px; font-size: 11px;">Búfer vacío.</div>
         </div>
     </div>
 </div>
@@ -55,37 +55,47 @@
             const out = document.getElementById('ai-text');
             const ev = document.getElementById('ev-view');
 
-            out.innerHTML = "<em>Recuperando evidencia...</em>";
+            out.innerHTML = "<em>Estableciendo túnel de datos...</em>";
             
             try {
-                // Simplificamos la URL al máximo para evitar bloqueos del navegador
-                const response = await fetch(`https://www.datos.gov.co/resource/jbjy-vk9h.json?$limit=5`);
+                // Usamos un proxy para saltar el bloqueo de CORS del navegador
+                const proxy = "https://corsproxy.io/?";
+                const target = "https://www.datos.gov.co/resource/jbjy-vk9h.json?$limit=100";
+                
+                const response = await fetch(proxy + encodeURIComponent(target));
                 const data = await response.json();
                 
-                // Si la respuesta es exitosa, filtramos manualmente en JS (así evitamos errores de URL)
+                // Filtrado semántico manual (Simulando FAISS)
                 const filtered = q ? data.filter(d => 
-                    d.nombre_entidad.toUpperCase().includes(q.toUpperCase()) || 
-                    d.objeto_del_contrato.toUpperCase().includes(q.toUpperCase())
-                ).slice(0, 5) : data;
+                    (d.nombre_entidad || "").toUpperCase().includes(q.toUpperCase()) || 
+                    (d.objeto_del_contrato || "").toUpperCase().includes(q.toUpperCase())
+                ).slice(0, 5) : data.slice(0, 5);
 
-                ev.innerHTML = filtered.length > 0 ? 
-                    filtered.map(d => `<div class="ev-card"><strong>${d.nombre_entidad}</strong><br>${d.objeto_del_contrato.substring(0,60)}...</div>`).join('') :
-                    "No se encontró coincidencia local, analizando datos generales.";
+                if (filtered.length > 0) {
+                    ev.innerHTML = filtered.map(d => `
+                        <div class="ev-card">
+                            <strong>${d.nombre_entidad}</strong><br>
+                            ${(d.objeto_del_contrato || "").substring(0,60)}...
+                        </div>
+                    `).join('');
+                } else {
+                    ev.innerHTML = "No se encontró evidencia para '" + q + "'. Mostrando datos generales.";
+                }
 
-                const context = (filtered.length > 0 ? filtered : data).map(d => `- ${d.nombre_entidad}: ${d.objeto_del_contrato}`).join('\n');
+                const context = filtered.map(d => `- Entidad: ${d.nombre_entidad} | Objeto: ${d.objeto_del_contrato}`).join('\n');
                 
-                // Llamada a la IA
+                // Generación con Gemini
                 const aiRes = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${k}`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ contents: [{ parts: [{ text: `Eres un Ingeniero Senior. Analiza esto:\n\nEVIDENCIA:\n${context}\n\nPREGUNTA: ${q}` }] }] })
+                    body: JSON.stringify({ contents: [{ parts: [{ text: `Actúa como Ingeniero Senior. Analiza la EVIDENCIA para responder la PREGUNTA.\n\nEVIDENCIA:\n${context}\n\nPREGUNTA: ${q}` }] }] })
                 });
 
                 const resJson = await aiRes.json();
                 out.innerText = resJson.candidates[0].content.parts[0].text;
 
             } catch (e) {
-                out.innerHTML = "<span style='color:red'>Error de Seguridad del Navegador:</span> El navegador está bloqueando la conexión externa.<br><br><strong>SOLUCIÓN MÁSTER:</strong><br>1. Sube este archivo a <b>GitHub Pages</b> (es gratis).<br>2. O ábrelo usando la extensión 'Live Server' de VS Code.<br>3. O intenta desde otro navegador como Firefox.";
+                out.innerHTML = "<span style='color:red'>Error de Túnel:</span> No se pudo extraer la evidencia. <br>Intenta refrescar la página o usar una red sin restricciones.";
             }
         }
     };
