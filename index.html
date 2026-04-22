@@ -4,20 +4,20 @@
     <meta charset="UTF-8">
     <title>Motor RAG SECOP II - hfhoyos</title>
     <style>
-        :root { --bg: #050505; --accent: #0ED5B0; --gold: #D97757; }
+        :root { --bg: #050505; --accent: #0ED5B0; --purple: #8E44AD; --gold: #D97757; }
         body { font-family: sans-serif; background: var(--bg); color: #e0e0e0; margin: 0; padding: 20px; display: flex; flex-direction: column; align-items: center; }
         .container { width: 100%; max-width: 1200px; }
         header { text-align: center; margin-bottom: 20px; border-bottom: 1px solid #222; padding-bottom: 10px; }
-        .config { background: #111; padding: 15px; border-radius: 12px; margin-bottom: 15px; border: 1px solid #222; }
-        input.key { width: 100%; background: #000; border: 1px solid #333; color: var(--gold); padding: 10px; border-radius: 8px; font-family: monospace; outline: none; }
+        .search-zone { background: rgba(255,255,255,0.05); padding: 20px; border-radius: 20px; display: grid; grid-template-columns: 1fr 1fr 150px; gap: 10px; margin-bottom: 20px; border: 1px solid #333; }
+        input { background: #111; border: 1px solid #333; color: white; padding: 10px; border-radius: 8px; outline: none; }
         .rag-grid { display: grid; grid-template-columns: 1fr 380px; gap: 20px; }
-        .bot { background: #111; border-radius: 20px; padding: 25px; border: 1px solid #232938; min-height: 450px; display: flex; flex-direction: column; }
-        #ai-text { flex-grow: 1; font-size: 14px; line-height: 1.6; white-space: pre-wrap; }
-        .evidence { background: #080808; border-radius: 20px; padding: 20px; border: 1px solid var(--gold); min-height: 400px; }
-        .ev-card { background: #1a1a1a; padding: 10px; border-radius: 8px; margin-bottom: 8px; border-left: 3px solid var(--gold); font-size: 11px; color: #888; }
-        .input-bar { background: #1a1a1a; padding: 10px; border-radius: 12px; margin-top: 15px; display: flex; gap: 10px; }
-        input#query { flex-grow: 1; background: transparent; border: none; color: white; outline: none; }
-        button { background: var(--gold); color: white; border: none; padding: 10px 20px; border-radius: 8px; cursor: pointer; font-weight: bold; }
+        .console { background: #111; border-radius: 24px; padding: 25px; border: 1px solid #232938; min-height: 450px; display: flex; flex-direction: column; }
+        #ai-output { flex-grow: 1; font-size: 14px; line-height: 1.6; color: #d1d1d6; white-space: pre-wrap; overflow-y: auto; }
+        .evidence-box { background: #080808; border-radius: 24px; padding: 20px; border: 1px solid var(--purple); max-height: 500px; overflow-y: auto; }
+        .ev-card { background: #1a1a1a; padding: 10px; border-radius: 8px; margin-bottom: 8px; border-left: 3px solid var(--purple); font-size: 11px; }
+        .chat-bar { background: #21263B; padding: 10px; border-radius: 12px; display: flex; gap: 10px; margin-top: 15px; border: 1px solid var(--purple); }
+        .chat-bar input { flex-grow: 1; background: transparent; border: none; }
+        button { background: var(--purple); color: white; border: none; padding: 10px; border-radius: 8px; cursor: pointer; font-weight: bold; }
     </style>
 </head>
 <body>
@@ -25,77 +25,91 @@
 <div class="container">
     <header>
         <h1>Motor RAG SECOP II - hfhoyos</h1>
-        <div style="font-size: 10px; color: var(--accent);">ARQUITECTURA RAG - MODO GITHUB PAGES</div>
+        <div style="font-size: 10px; color: var(--accent);">AUDITORÍA ANALÍTICA EXPERTA</div>
     </header>
 
-    <div class="config">
-        <input type="text" id="key" class="key" value="AIzaSyAJarbr-303YfF2TDptgOI8NLZbdwmByHQ">
+    <div class="search-zone">
+        <input type="text" id="kw1" placeholder="Entidad (Ej: SENA)">
+        <input type="text" id="kw2" placeholder="Objeto (Ej: AI)">
+        <button onclick="ragCore.loadData()">CARGAR DATOS</button>
     </div>
 
     <div class="rag-grid">
-        <div class="bot">
-            <div id="ai-text">Sistema listo. El motor usará un túnel seguro para extraer la evidencia.</div>
-            <div class="input-bar">
-                <input type="text" id="query" placeholder="Ej: SENA, Tuluá, Alimentos...">
-                <button onclick="engine.run()">ANALIZAR</button>
+        <div class="console">
+            <div id="ai-output"><strong>[Analista Senior]:</strong> Esperando sincronización de evidencia de SECOP II...</div>
+            <div class="chat-bar">
+                <input type="text" id="user-ask" placeholder="Pregunta sobre los datos cargados...">
+                <button onclick="ragCore.askAI()" style="background:var(--accent); color:black;">PREGUNTAR</button>
             </div>
         </div>
-        <div class="evidence">
-            <h3 style="margin:0; font-size:12px; color:var(--gold);">EVIDENCIA (FAISS SIM)</h3>
-            <div id="ev-view" style="margin-top:15px; font-size: 11px;">Búfer vacío.</div>
+        <div class="evidence-box">
+            <h3 style="margin:0; font-size:12px; color:var(--purple);">EVIDENCIA RECOLECTADA</h3>
+            <div id="ev-list" style="margin-top:15px; font-size:11px; text-align:center; color:#555;">Búfer vacío.</div>
         </div>
     </div>
 </div>
 
 <script>
-    const engine = {
-        async run() {
-            const q = document.getElementById('query').value;
-            const k = document.getElementById('key').value.trim();
-            const out = document.getElementById('ai-text');
-            const ev = document.getElementById('ev-view');
+    let evidenceMemory = [];
+    const AI_KEY = "AIzaSyAJarbr-303YfF2TDptgOI8NLZbdwmByHQ";
 
-            out.innerHTML = "<em>Estableciendo túnel de datos...</em>";
-            
+    const ragCore = {
+        async loadData() {
+            const ent = document.getElementById('kw1').value.toUpperCase();
+            const obj = document.getElementById('kw2').value.toUpperCase();
+            const list = document.getElementById('ev-list');
+            list.innerHTML = "<em>Recuperando de la nube...</em>";
+
             try {
-                // Usamos un proxy para saltar el bloqueo de CORS del navegador
-                const proxy = "https://corsproxy.io/?";
-                const target = "https://www.datos.gov.co/resource/jbjy-vk9h.json?$limit=100";
+                // Alternativa de proxy más estable
+                const url = `https://www.datos.gov.co/resource/jbjy-vk9h.json?$limit=100&$order=fecha_de_publicacion_del_proceso DESC`;
+                const proxyUrl = "https://api.allorigins.win/get?url=" + encodeURIComponent(url);
                 
-                const response = await fetch(proxy + encodeURIComponent(target));
-                const data = await response.json();
-                
-                // Filtrado semántico manual (Simulando FAISS)
-                const filtered = q ? data.filter(d => 
-                    (d.nombre_entidad || "").toUpperCase().includes(q.toUpperCase()) || 
-                    (d.objeto_del_contrato || "").toUpperCase().includes(q.toUpperCase())
-                ).slice(0, 5) : data.slice(0, 5);
+                const response = await fetch(proxyUrl);
+                const json = await response.json();
+                const rawData = JSON.parse(json.contents);
 
-                if (filtered.length > 0) {
-                    ev.innerHTML = filtered.map(d => `
+                evidenceMemory = rawData.filter(d => 
+                    (d.nombre_entidad || "").toUpperCase().includes(ent) && 
+                    (d.objeto_del_contrato || "").toUpperCase().includes(obj)
+                ).slice(0, 7);
+
+                if (evidenceMemory.length > 0) {
+                    list.innerHTML = evidenceMemory.map(d => `
                         <div class="ev-card">
                             <strong>${d.nombre_entidad}</strong><br>
-                            ${(d.objeto_del_contrato || "").substring(0,60)}...
+                            $${Number(d.valor_del_contrato || 0).toLocaleString()}<br>
+                            ${(d.objeto_del_contrato || "").substring(0,50)}...
                         </div>
                     `).join('');
+                    document.getElementById('ai-output').innerHTML = "<strong>[System]:</strong> Evidencia cargada con éxito. Procede con tu consulta de auditoría.";
                 } else {
-                    ev.innerHTML = "No se encontró evidencia para '" + q + "'. Mostrando datos generales.";
+                    list.innerHTML = "No se encontraron coincidencias para los filtros aplicados.";
                 }
+            } catch (e) {
+                list.innerHTML = "<span style='color:red'>Error de Red:</span> No se pudo saltar el bloqueo CORS. Intente buscar un término general.";
+            }
+        },
 
-                const context = filtered.map(d => `- Entidad: ${d.nombre_entidad} | Objeto: ${d.objeto_del_contrato}`).join('\n');
-                
-                // Generación con Gemini
-                const aiRes = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${k}`, {
+        async askAI() {
+            const q = document.getElementById('user-ask').value;
+            const out = document.getElementById('ai-output');
+            if (evidenceMemory.length === 0) return alert("Carga datos primero.");
+
+            out.innerHTML = "<em>Analizando evidencia con Gemini 1.5 Flash...</em>";
+
+            const context = evidenceMemory.map(d => `ENTIDAD: ${d.nombre_entidad} | OBJETO: ${d.objeto_del_contrato} | VALOR: ${d.valor_del_contrato}`).join('\n\n');
+
+            try {
+                const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${AI_KEY}`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ contents: [{ parts: [{ text: `Actúa como Ingeniero Senior. Analiza la EVIDENCIA para responder la PREGUNTA.\n\nEVIDENCIA:\n${context}\n\nPREGUNTA: ${q}` }] }] })
+                    body: JSON.stringify({ contents: [{ parts: [{ text: `Eres un Ingeniero Senior. Analiza la EVIDENCIA y responde la PREGUNTA.\n\nEVIDENCIA:\n${context}\n\nPREGUNTA: ${q}` }] }] })
                 });
-
-                const resJson = await aiRes.json();
-                out.innerText = resJson.candidates[0].content.parts[0].text;
-
+                const data = await res.json();
+                out.innerText = data.candidates[0].content.parts[0].text;
             } catch (e) {
-                out.innerHTML = "<span style='color:red'>Error de Túnel:</span> No se pudo extraer la evidencia. <br>Intenta refrescar la página o usar una red sin restricciones.";
+                out.innerText = "Error en la Torre de Inteligencia.";
             }
         }
     };
